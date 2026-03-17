@@ -354,6 +354,8 @@ The admin settings panel includes 6 built-in themes:
 ## 👨‍💻 Author
 
 **E Sai Anurath**
+-Name   : ESHWARAPRAGADA SAI ANURATH
+- HT NO : 2303A51560
 - GitHub: [@ESaiAnurath](https://github.com/ESaiAnurath)
 - Project: [ShopNova E-Commerce](https://github.com/ESaiAnurath/ShopNova_E-Commerece)
 
