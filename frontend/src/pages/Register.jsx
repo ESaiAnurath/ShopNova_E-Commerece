@@ -4,183 +4,577 @@ import { useAuth } from "../context/AuthContext";
 import authService from "../services/authService";
 
 export default function Register() {
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
+  const [form, setForm] = useState({ 
+    name: "",
+    email: "", 
+     reenteremail: "",
+    phone: "",
+    password: "", 
+    otp: ""
+  });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [step, setStep] = useState(1);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
+  const handleVerifyEmail = async () => {
+    setError("");
+    setSuccess("");
+    if (!form.email) {
+      setError("Please enter your email address");
+      return;
+    }
+    
+    setVerifyingEmail(true);
+    try {
+      const response = await fetch("http://localhost:8080/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setError(data.message || "Failed to send OTP");
+        return;
+      }
+      
+      setSuccess("OTP sent to your email!");
+      setOtpSent(true);
+      setStep(2);
+    } catch (err) {
+      setError("Failed to send OTP: " + err.message);
+    } finally {
+      setVerifyingEmail(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    setError("");
+    setSuccess("");
+    if (!form.otp) {
+      setError("Please enter the OTP");
+      return;
+    }
+    setVerifyingEmail(true);
+    try {
+      if (form.otp.length !== 6) {
+        setError("OTP must be 6 digits");
+        setVerifyingEmail(false);
+        return;
+      }
+      
+      const response = await fetch("http://localhost:8080/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, otp: form.otp })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setError(data.message || "Invalid OTP");
+        return;
+      }
+      
+      setSuccess("Email verified successfully!");
+      setEmailVerified(true);
+      setStep(3);
+    } catch (err) {
+      setError("Verification failed: " + err.message);
+    } finally {
+      setVerifyingEmail(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (form.password !== form.confirm) { setError("Passwords do not match!"); return; }
-    if (form.password.length < 6) { setError("Password must be at least 6 characters!"); return; }
+    if (!emailVerified) {
+      setError("Please verify your email first");
+      return;
+    }
+    if (!form.password) {
+      setError("Please enter a password");
+      return;
+    }
+    if (form.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (!form.phone || form.phone.length < 10) {
+      setError("Please enter a valid phone number");
+      return;
+    }
     setLoading(true);
     try {
-      const data = await authService.register(form.name, form.email, form.password);
+      const response = await fetch("http://localhost:8080/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          name: form.name,
+          phone: form.phone,
+          otp: form.otp
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setError(data.message || "Registration failed");
+        return;
+      }
+      
       login(data.token, data.user);
       navigate("/dashboard");
     } catch (err) {
-      setError(err.message || "Registration failed. Try again.");
+      setError("Registration failed: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStrength = () => {
-    const p = form.password;
-    if (!p) return 0;
-    let s = 0;
-    if (p.length >= 6) s++;
-    if (p.length >= 10) s++;
-    if (/[A-Z]/.test(p)) s++;
-    if (/[0-9]/.test(p)) s++;
-    if (/[^A-Za-z0-9]/.test(p)) s++;
-    return s;
+  const handleGoogleSignUp = () => {
+    window.location.href = "https://accounts.google.com/o/oauth2/auth";
   };
 
-  const strengthLabel = ["", "Weak", "Fair", "Good", "Strong", "Very Strong"];
-  const strengthColor = ["", "#FF6B9D", "#FFD166", "#FFD166", "#3ECFCF", "#3ECFCF"];
-  const s = getStrength();
-
   return (
-    <div className="reg-root">
-      <div className="reg-bg">
-        <div className="orb orb1" /><div className="orb orb2" /><div className="orb orb3" />
-        <div className="grid-overlay" />
-      </div>
-
-      <div className="reg-card">
-        <div className="reg-brand">
-          <div className="brand-icon">
-            <svg viewBox="0 0 40 40" fill="none">
-              <rect width="40" height="40" rx="12" fill="url(#g2)" />
-              <path d="M10 20L18 28L30 12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-              <defs><linearGradient id="g2" x1="0" y1="0" x2="40" y2="40"><stop stopColor="#6C63FF"/><stop offset="1" stopColor="#3ECFCF"/></linearGradient></defs>
-            </svg>
-          </div>
-          <div>
-            <h1 className="brand-name">ShopNova</h1>
-            <p className="brand-sub">E-Commerce Platform</p>
-          </div>
+    <div className="amazon-reg-container">
+      <div className="amazon-reg-wrapper">
+        {/* Header */}
+        <div className="amazon-header">
+          <h1 className="amazon-logo">ShopNova</h1>
         </div>
 
-        <div className="reg-header">
-          <h2>Create Account</h2>
-          <p>Join ShopNova and start shopping today</p>
-        </div>
+        {/* Main Form */}
+        <div className="amazon-form-container">
+          <h2 className="form-title">Create Account</h2>
 
-        {error && <div className="error-banner"><span>⚠</span> {error}</div>}
+          {error && <div className="amazon-alert error">{error}</div>}
+          {success && <div className="amazon-alert success">{success}</div>}
 
-        <form onSubmit={handleSubmit} className="reg-form">
-          <div className="field">
-            <label>Full Name</label>
-            <div className="input-wrap">
-              <span className="input-icon">👤</span>
-              <input type="text" name="name" placeholder="John Doe" value={form.name} onChange={handleChange} required />
-            </div>
-          </div>
-
-          <div className="field">
-            <label>Email Address</label>
-            <div className="input-wrap">
-              <span className="input-icon">✉</span>
-              <input type="email" name="email" placeholder="you@example.com" value={form.email} onChange={handleChange} required />
-            </div>
-          </div>
-
-          <div className="field">
-            <label>Password</label>
-            <div className="input-wrap">
-              <span className="input-icon">🔒</span>
-              <input type="password" name="password" placeholder="Min 6 characters" value={form.password} onChange={handleChange} required />
-            </div>
-            {form.password.length > 0 && (
-              <div className="strength-wrap">
-                <div className="strength-bars">
-                  {[1,2,3,4,5].map(i => (
-                    <div key={i} className="strength-bar" style={{ background: i <= s ? strengthColor[s] : "rgba(255,255,255,0.1)" }} />
-                  ))}
-                </div>
-                <span style={{ color: strengthColor[s] }}>{strengthLabel[s]}</span>
+          {step === 1 && (
+            <div className="amazon-form-section">
+              <div className="form-field">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Enter your email"
+                  value={form.email}
+                  onChange={handleChange}
+                  disabled={emailVerified}
+                  className="amazon-input"
+                />
               </div>
-            )}
-          </div>
-
-          <div className="field">
-            <label>Confirm Password</label>
-            <div className="input-wrap">
-              <span className="input-icon">🔐</span>
-              <input type="password" name="confirm" placeholder="Re-enter password" value={form.confirm} onChange={handleChange} required />
-              {form.confirm.length > 0 && (
-                <span className="match-icon">{form.password === form.confirm ? "✅" : "❌"}</span>
-              )}
+              <button
+                type="button"
+                onClick={handleVerifyEmail}
+                disabled={verifyingEmail || !form.email || emailVerified}
+                className="amazon-verify-btn"
+              >
+                {verifyingEmail ? "Sending OTP..." : emailVerified ? "✓ Verified" : "Send OTP"}
+              </button>
             </div>
-          </div>
+          )}
 
-          <label className="terms">
-            <input type="checkbox" required />
-            <span>I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></span>
-          </label>
+          {step === 2 && (
+            <div className="amazon-form-section">
+              <div className="form-field">
+                <label>Enter OTP</label>
+                <input
+                  type="text"
+                  name="otp"
+                  placeholder="Enter 6-digit OTP"
+                  value={form.otp}
+                  onChange={handleChange}
+                  maxLength="6"
+                  className="amazon-input"
+                />
+                <small className="resend-text">Didn't receive? <button
+  type="button"
+  onClick={handleVerifyEmail}
+>
+  Resend OTP
+</button></small>
+              </div>
+              <button
+                type="button"
+                onClick={handleVerifyOTP}
+                disabled={verifyingEmail || form.otp.length !== 6}
+                className="amazon-verify-btn"
+              >
+                {verifyingEmail ? "Verifying..." : "Verify OTP"}
+              </button>
+            </div>
+          )}
 
-          <button type="submit" className={`reg-btn ${loading ? "loading" : ""}`} disabled={loading}>
-            {loading ? <span className="spinner" /> : "Create Account →"}
-          </button>
-        </form>
+          {step === 3 && (
+            <form onSubmit={handleSubmit} className="amazon-form-section">
+              <div className="form-field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  disabled
+                  className="amazon-input disabled"
+                />
+              </div>
 
-        <p className="login-prompt">Already have an account? <a href="/login">Sign in →</a></p>
+              <div className="form-field">
+                <label>Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Enter your name"
+                  value={form.name}
+                  onChange={handleChange}
+                  className="amazon-input"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Phone Number</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="Enter your 10-digit phone number"
+                  value={form.phone}
+                  onChange={handleChange}
+                  className="amazon-input"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Password</label>
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="Minimum 6 characters"
+                  value={form.password}
+                  onChange={handleChange}
+                  className="amazon-input"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={
+  loading ||
+  !form.name ||
+  !form.phone ||
+  !form.password
+}disabled={loading || !form.password || !form.mobile}
+                className="amazon-submit-btn"
+              >
+                {loading ? "Creating Account..." : "Create Account"}
+              </button>
+            </form>
+          )}
+
+          {step === 1 && (
+            <>
+              <div className="divider">or</div>
+
+              <button
+                type="button"
+                onClick={handleGoogleSignUp}
+                className="google-btn"
+              >
+                <svg className="google-icon" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="amazon-footer">
+          <p>Already have an account? <a href="/login">Sign in</a></p>
+        </div>
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        .reg-root{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a1a;font-family:'Sora',sans-serif;position:relative;overflow:hidden;padding:20px}
-        .reg-bg{position:absolute;inset:0;pointer-events:none}
-        .orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.2}
-        .orb1{width:500px;height:500px;background:#6C63FF;top:-200px;right:-100px;animation:f1 8s ease-in-out infinite}
-        .orb2{width:400px;height:400px;background:#3ECFCF;bottom:-100px;left:-100px;animation:f2 10s ease-in-out infinite}
-        .orb3{width:300px;height:300px;background:#FF6B9D;top:40%;left:60%;animation:f3 12s ease-in-out infinite}
-        .grid-overlay{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px);background-size:40px 40px}
-        @keyframes f1{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,30px)}}
-        @keyframes f2{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-30px)}}
-        @keyframes f3{0%,100%{transform:translate(0,0)}50%{transform:translate(-20px,20px)}}
-        .reg-card{position:relative;width:100%;max-width:480px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:40px;backdrop-filter:blur(20px);box-shadow:0 40px 80px rgba(0,0,0,0.5);animation:slideUp 0.6s cubic-bezier(0.16,1,0.3,1)}
-        @keyframes slideUp{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
-        .reg-brand{display:flex;align-items:center;gap:14px;margin-bottom:28px}
-        .brand-icon svg{width:44px;height:44px}
-        .brand-name{font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px}
-        .brand-sub{font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px}
-        .reg-header{margin-bottom:24px}
-        .reg-header h2{font-size:26px;font-weight:700;color:#fff;letter-spacing:-0.8px}
-        .reg-header p{font-size:14px;color:rgba(255,255,255,0.4);margin-top:6px}
-        .error-banner{background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.3);color:#ff8080;padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:20px;display:flex;gap:8px;align-items:center}
-        .reg-form{display:flex;flex-direction:column;gap:18px}
-        .field label{display:block;font-size:13px;font-weight:500;color:rgba(255,255,255,0.6);margin-bottom:8px}
-        .input-wrap{position:relative;display:flex;align-items:center}
-        .input-icon{position:absolute;left:14px;font-size:15px;pointer-events:none}
-        .input-wrap input{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#fff;font-family:'Sora',sans-serif;font-size:14px;padding:13px 14px 13px 44px;border-radius:12px;outline:none;transition:border-color 0.2s,background 0.2s}
-        .input-wrap input::placeholder{color:rgba(255,255,255,0.25)}
-        .input-wrap input:focus{border-color:#6C63FF;background:rgba(108,99,255,0.08)}
-        .match-icon{position:absolute;right:14px;font-size:14px}
-        .strength-wrap{display:flex;align-items:center;gap:10px;margin-top:8px}
-        .strength-bars{display:flex;gap:4px;flex:1}
-        .strength-bar{height:4px;flex:1;border-radius:4px;transition:background 0.3s}
-        .strength-wrap span{font-size:11px;font-weight:600;min-width:70px;text-align:right}
-        .terms{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:rgba(255,255,255,0.45);cursor:pointer;line-height:1.5}
-        .terms input{margin-top:3px;flex-shrink:0}
-        .terms a{color:#6C63FF;text-decoration:none}
-        .terms a:hover{text-decoration:underline}
-        .reg-btn{width:100%;padding:15px;background:linear-gradient(135deg,#6C63FF,#3ECFCF);border:none;border-radius:12px;color:#fff;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s,transform 0.1s;display:flex;align-items:center;justify-content:center;margin-top:4px}
-        .reg-btn:hover:not(:disabled){opacity:0.9;transform:translateY(-1px)}
-        .reg-btn:disabled{opacity:0.6;cursor:not-allowed}
-        .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        .login-prompt{text-align:center;font-size:13px;color:rgba(255,255,255,0.4);margin-top:24px}
-        .login-prompt a{color:#6C63FF;text-decoration:none;font-weight:500}
-        .login-prompt a:hover{text-decoration:underline}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+
+        .amazon-reg-container {
+          min-height: 100vh;
+          background-color: #f5f5f5;
+          padding: 20px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .amazon-reg-wrapper {
+          width: 100%;
+          max-width: 400px;
+          background: white;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+          padding: 40px;
+        }
+
+        .amazon-header {
+          text-align: center;
+          margin-bottom: 30px;
+          padding-bottom: 20px;
+          border-bottom: 1px solid #e7e7e7;
+        }
+
+        .amazon-logo {
+          font-size: 32px;
+          font-weight: 700;
+          color: #FF9900;
+          letter-spacing: -1px;
+          margin: 0;
+        }
+
+        .form-title {
+          font-size: 28px;
+          font-weight: 700;
+          color: #0a0a0a;
+          margin-bottom: 20px;
+          line-height: 1.2;
+        }
+
+        .amazon-alert {
+          padding: 12px 16px;
+          border-radius: 4px;
+          margin-bottom: 20px;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+
+        .amazon-alert.error {
+          background-color: #fee;
+          color: #c41;
+          border: 1px solid #e7b5b5;
+        }
+
+        .amazon-alert.success {
+          background-color: #efe;
+          color: #2b7000;
+          border: 1px solid #b7e7b5;
+        }
+
+        .amazon-form-container {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .amazon-form-section {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .form-field {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .form-field label {
+          font-size: 13px;
+          font-weight: 600;
+          color: #0a0a0a;
+        }
+
+        .amazon-input {
+          padding: 10px 12px;
+          font-size: 14px;
+          border: 1px solid #bbb;
+          border-radius: 4px;
+          font-family: inherit;
+          outline: none;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .amazon-input:focus {
+          border-color: #FF9900;
+          box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.15);
+        }
+
+        .amazon-input.disabled {
+          background-color: #f9f9f9;
+          color: #999;
+          cursor: not-allowed;
+        }
+
+        .amazon-verify-btn {
+          padding: 10px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          background-color: #FF9900;
+          color: white;
+          border: 1px solid #FF9900;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.2s, border-color 0.2s;
+          width: 100%;
+        }
+
+        .amazon-verify-btn:hover:not(:disabled) {
+          background-color: #e68a00;
+          border-color: #e68a00;
+        }
+
+        .amazon-verify-btn:disabled {
+          background-color: #ccc;
+          border-color: #ccc;
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        .amazon-submit-btn {
+          padding: 10px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          background-color: #FF9900;
+          color: white;
+          border: 1px solid #FF9900;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+          width: 100%;
+          margin-top: 10px;
+        }
+
+        .amazon-submit-btn:hover:not(:disabled) {
+          background-color: #e68a00;
+          border-color: #e68a00;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+        }
+
+        .amazon-submit-btn:disabled {
+          background-color: #ccc;
+          border-color: #ccc;
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        .resend-text {
+          font-size: 12px;
+          color: #666;
+          margin-top: 6px;
+        }
+
+        .resend-text a {
+          color: #0066c0;
+          text-decoration: none;
+          cursor: pointer;
+        }
+
+        .resend-text a:hover {
+          color: #c45911;
+        }
+
+        .divider {
+          text-align: center;
+          margin: 20px 0;
+          font-size: 12px;
+          color: #666;
+          position: relative;
+        }
+
+        .divider::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: #ddd;
+          z-index: 0;
+        }
+
+        .divider {
+          position: relative;
+          z-index: 1;
+          background: white;
+          padding: 0 10px;
+          display: inline-block;
+          width: 100%;
+        }
+
+        .google-btn {
+          padding: 10px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          background-color: white;
+          color: #222;
+          border: 1px solid #bbb;
+          border-radius: 4px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          transition: background-color 0.2s, border-color 0.2s;
+          width: 100%;
+        }
+
+        .google-btn:hover {
+          background-color: #f8f8f8;
+          border-color: #999;
+        }
+
+        .google-icon {
+          width: 18px;
+          height: 18px;
+        }
+
+        .amazon-footer {
+          margin-top: 30px;
+          padding-top: 20px;
+          border-top: 1px solid #e7e7e7;
+          text-align: center;
+          font-size: 13px;
+          color: #666;
+        }
+
+        .amazon-footer a {
+          color: #0066c0;
+          text-decoration: none;
+        }
+
+        .amazon-footer a:hover {
+          color: #c45911;
+          text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+          .amazon-reg-wrapper {
+            padding: 20px;
+          }
+
+          .form-title {
+            font-size: 24px;
+          }
+
+          .amazon-logo {
+            font-size: 28px;
+          }
+        }
       `}</style>
     </div>
   );
